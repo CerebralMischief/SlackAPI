@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -50,6 +50,7 @@ namespace SlackAPI
         public Dictionary<string, Channel> ChannelLookup;
         public Dictionary<string, Channel> GroupLookup;
         public Dictionary<string, DirectMessageConversation> DirectMessageLookup;
+        public Dictionary<string, Conversation> ConversationLookup;
 
         //public event Action<ReceivingMessage> OnUserTyping;
         //public event Action<ReceivingMessage> OnMessageReceived;
@@ -94,18 +95,32 @@ namespace SlackAPI
             foreach (User u in Users) UserLookup.Add(u.id, u);
 
             ChannelLookup = new Dictionary<string, Channel>();
-            foreach (Channel c in Channels) ChannelLookup.Add(c.id, c);
+            ConversationLookup = new Dictionary<string, Conversation>();
+            foreach (Channel c in Channels)
+            {
+                ChannelLookup.Add(c.id, c);
+                ConversationLookup.Add(c.id, c);
+            }
 
             GroupLookup = new Dictionary<string, Channel>();
-            foreach (Channel g in Groups) GroupLookup.Add(g.id, g);
+            foreach (Channel g in Groups)
+            {
+                GroupLookup.Add(g.id, g);
+                ConversationLookup.Add(g.id, g);
+            }
 
             DirectMessageLookup = new Dictionary<string, DirectMessageConversation>();
-            foreach (DirectMessageConversation im in DirectMessages) DirectMessageLookup.Add(im.id, im);
+            foreach (DirectMessageConversation im in DirectMessages)
+            {
+                DirectMessageLookup.Add(im.id, im);
+                ConversationLookup.Add(im.id, im);
+            }
         }
 
         internal static Uri GetSlackUri(string path, Tuple<string, string>[] getParameters)
         {
             string parameters = getParameters
+                .Where(x => x.Item2 != null)
                 .Select(new Func<Tuple<string, string>, string>(a => 
                     {
                         try
@@ -665,7 +680,7 @@ namespace SlackAPI
                 form.Add(new ByteArrayContent(fileData), "file", fileName);
                 HttpResponseMessage response = client.PostAsync(string.Format("{0}?{1}", target, string.Join("&", parameters.ToArray())), form).Result;
                 string result = response.Content.ReadAsStringAsync().Result;
-                callback(JsonConvert.DeserializeObject<FileUploadResponse>(result, new JavascriptDateTimeConverter()));
+                callback(result.Deserialize<FileUploadResponse>());
             }
         }
 
@@ -718,6 +733,16 @@ namespace SlackAPI
             APIRequest<AccessTokenResponse>(callback, new Tuple<string, string>[] { new Tuple<string, string>("client_id", clientId),
                 new Tuple<string, string>("client_secret", clientSecret), new Tuple<string, string>("code", code),
                 new Tuple<string, string>("redirect_uri", redirectUri) }, new Tuple<string, string>[] {});
+        }
+
+        public static void RegisterConverter(JsonConverter converter)
+        {
+            if (converter == null)
+            {
+                throw new ArgumentNullException("converter");
+            }
+
+            Extensions.Converters.Add(converter);
         }
     }
 }
